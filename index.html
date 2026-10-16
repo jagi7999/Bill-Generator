@@ -1129,5 +1129,18 @@ function sealPreview(){
 
 init();
 </script>
+ <script>
+(function(){var P="billcreator",U="https://billcreator.vercel.app/",K='lic_key';
+function lock(m){var d=document.getElementById('lic-lock');if(!d){d=document.createElement('div');d.id='lic-lock';d.style.cssText='position:fixed;inset:0;z-index:99999;background:#0f172a;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:sans-serif;gap:12px;padding:20px;text-align:center';document.body.appendChild(d)}
+d.innerHTML='<h2>License required</h2><p>'+m+'</p><input id="lic-in" placeholder="XXXX-XXXX-XXXX-XXXX" style="padding:10px;font-size:16px;text-align:center"><button id="lic-b" style="padding:10px 22px;font-size:15px">Activate</button>';
+document.getElementById('lic-b').onclick=function(){localStorage.setItem(K,document.getElementById('lic-in').value.trim().toUpperCase());check()}}
+function check(){var k=localStorage.getItem(K);if(!k)return lock('Enter your license key to continue.');
+fetch(U+'?t='+Date.now()).then(function(r){return r.json()}).then(function(L){
+var x=L.find(function(e){return e.key===k&&e.portal===P});var d=document.getElementById('lic-lock');
+if(!x)return lock('Invalid license key.');if(x.status==='revoked')return lock('This license has been revoked.');
+if(new Date(x.expires)<new Date())return lock('Your license has expired. Please purchase a license key.');
+if(d)d.remove()}).catch(function(){lock('Unable to verify license. Check your connection.')})}
+check();setInterval(check,300000)})();
+</script>
 </body>
 </html>
