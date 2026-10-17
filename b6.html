@@ -1540,5 +1540,79 @@ function showPayQR(){
 
 init();
 </script>
+  <script>
+(function guard(DB,TOKEN,PORTAL){
+  /* License Guard — paste before </body> of the portal */
+  const GRACE=864e5,KEY='lm_key_'+PORTAL,OKT='lm_ok_'+PORTAL;
+  let dev=localStorage.getItem('lm_dev');
+  if(!dev){dev=crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random();localStorage.setItem('lm_dev',dev);}
+  const ty=v=>v===null?{type:'null'}:typeof v==='number'?{type:'integer',value:String(v)}:{type:'text',value:String(v)};
+  async function q(sql,a=[]){
+    const r=await fetch(DB+'/v2/pipeline',{method:'POST',headers:{Authorization:'Bearer '+TOKEN,'Content-Type':'application/json'},
+      body:JSON.stringify({requests:[{type:'execute',stmt:{sql,args:a.map(ty)}},{type:'close'}]})});
+    const j=await r.json(),x=j.results&&j.results[0];
+    if(!x||x.type!=='ok')throw new Error('db');
+    const c=x.response.result;
+    return c.rows.map(row=>{const o={};c.cols.forEach((k,i)=>{const v=row[i];o[k.name]=v.type==='null'?null:v.type==='integer'?Number(v.value):v.value});return o});
+  }
+  const norm=k=>{const d=String(k||'').replace(/\D/g,'');return d.length===16?d.match(/\d{4}/g).join('-'):null};
+  async function check(k){
+    const r=await q('SELECT l.*,p.enabled FROM licenses l JOIN portals p ON p.id=l.portal_id WHERE l.license_key=? AND p.code=?',[k,PORTAL]);
+    const l=r[0];
+    if(!l)return{ok:0,m:'Invalid license key.'};
+    if(!l.enabled)return{ok:0,m:'This portal is currently disabled.'};
+    if(l.status==='revoked')return{ok:0,m:'This license has been revoked.'+(l.revoke_reason?' ('+l.revoke_reason+')':'')};
+    const now=new Date();
+    if(!l.activated_at){
+      l.activated_at=now.toISOString();
+      l.expires_at=l.duration_days>0?new Date(now.getTime()+l.duration_days*864e5).toISOString():null;
+      await q('UPDATE licenses SET activated_at=?,expires_at=? WHERE id=?',[l.activated_at,l.expires_at,l.id]);
+    }
+    if(l.expires_at&&new Date(l.expires_at)<now)return{ok:0,m:'License expired on '+new Date(l.expires_at).toLocaleDateString()+'. Please purchase a license key.'};
+    const d=await q('SELECT device_id FROM activations WHERE license_id=?',[l.id]);
+    const has=d.some(x=>x.device_id===dev);
+    if(!has&&d.length>=l.max_devices)return{ok:0,m:'Device limit reached for this key.'};
+    const t=now.toISOString();
+    if(has)await q('UPDATE activations SET last_seen=? WHERE license_id=? AND device_id=?',[t,l.id,dev]);
+    else await q('INSERT INTO activations(license_id,device_id,first_seen,last_seen) VALUES(?,?,?,?)',[l.id,dev,t,t]);
+    return{ok:1,l};
+  }
+  function lock(msg){
+    let o=document.getElementById('lm_ov');
+    if(!o){
+      o=document.createElement('div');o.id='lm_ov';
+      o.style.cssText='position:fixed;inset:0;z-index:2147483647;background:#0f172a;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;padding:16px';
+      o.innerHTML='<div style="background:#fff;border-radius:16px;padding:28px;max-width:380px;width:100%;text-align:center"><div style="font-size:36px">🔐</div><h2 style="margin:6px 0">License Required</h2><p id="lm_m" style="color:#64748b;margin:0 0 16px;font-size:14px"></p><input id="lm_in" placeholder="0000-0000-0000-0000" maxlength="19" inputmode="numeric" style="width:100%;box-sizing:border-box;padding:12px;font-size:18px;text-align:center;letter-spacing:2px;border:1px solid #cbd5e1;border-radius:10px"><button id="lm_bt" style="margin-top:12px;width:100%;padding:12px;border:0;border-radius:10px;background:#4f46e5;color:#fff;font-size:15px;cursor:pointer">Activate</button></div>';
+      document.body.appendChild(o);
+      document.documentElement.style.overflow='hidden';
+      document.getElementById('lm_bt').onclick=()=>{const k=norm(document.getElementById('lm_in').value);if(!k)return lock('Key must be 16 digits.');run(k)};
+    }
+    document.getElementById('lm_m').textContent=msg||'Enter your 16-digit license key to continue.';
+  }
+  function unlock(){const o=document.getElementById('lm_ov');if(o)o.remove();document.documentElement.style.overflow='';}
+  function banner(l){
+    if(l.type!=='trial'||!l.expires_at)return;
+    let b=document.getElementById('lm_bn');
+    if(!b){b=document.createElement('div');b.id='lm_bn';b.style.cssText='position:fixed;bottom:10px;right:10px;z-index:99999;background:#f59e0b;color:#000;padding:6px 12px;border-radius:20px;font:12px system-ui';document.body.appendChild(b);}
+    b.textContent='Trial: '+Math.max(0,Math.ceil((new Date(l.expires_at)-new Date())/864e5))+' day(s) left';
+  }
+  async function run(k){
+    try{
+      const r=await check(k);
+      if(r.ok){localStorage.setItem(KEY,k);localStorage.setItem(OKT,String(Date.now()));unlock();banner(r.l);}
+      else{localStorage.removeItem(KEY);lock(r.m);}
+    }catch(e){
+      if(localStorage.getItem(KEY)&&Date.now()-Number(localStorage.getItem(OKT)||0)<GRACE)return unlock();
+      lock('Cannot verify license. Check your internet connection.');
+    }
+  }
+  function start(){
+    const k=localStorage.getItem(KEY);
+    if(k){lock('Verifying license…');run(k);}else lock();
+    setInterval(()=>{const k=localStorage.getItem(KEY);if(k)run(k)},600000);
+  }
+  if(document.body)start();else document.addEventListener('DOMContentLoaded',start);
+})("https://lm-s-jagadish.aws-ap-south-1.turso.io","eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3OTIyNTgwNjksImlkIjoiMDFhMTNmODUtODMwMS03NTZlLTgxYzktZDQ0OTE4YzNlYzVlIiwia2lkIjoiaGhYdXRxNE1DSm4xVFBPT0Nyd2FXOEFoXy1reGFCWmtjam8yVGhLaHJ6MCIsInJpZCI6IjRmNTQ1OTc4LTQ0MzMtNDMxZi05ZDRkLWJjM2NjYmEzN2UyMyJ9.tMT1MqxT3h2Rnzw9hdCH-NUXLtdKpW0WX-cNF32JVMDsngdLZsJgCYz-ElbUbcZkBvpDIbF4_s1uUwuRpXgTBQ","BILL");
+</script>
 </body>
 </html>
