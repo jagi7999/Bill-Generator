@@ -117,6 +117,7 @@ tr.void td{color:#999;text-decoration:line-through}
 .chip.sel{background:var(--navy);color:#fff;border-color:var(--navy)}
 #sealPrev svg{width:130px;height:130px}
 button.btn.dark{background:#7a0f0f}
+.upi-box{margin-top:8px;padding:8px;border:1px dashed #9db3e6;border-radius:10px;background:#f7faff}
 </style>
 </head>
 <body>
@@ -128,7 +129,7 @@ button.btn.dark{background:#7a0f0f}
   <div style="margin-top:14px"><label>Role</label>
     <select id="loginRole"><option value="staff">Staff (enter bill data)</option><option value="admin">Admin (settings, void, backup)</option></select></div>
   <div style="margin-top:10px"><label>PIN</label><input type="password" id="loginPin" placeholder="Enter PIN" onkeydown="if(event.key==='Enter')doLogin()"></div>
-  <!--<div class="hint">First-time defaults — Admin: <b>admin123</b>, Staff: <b>staff123</b>. Admin should change them under Settings.</div>-->
+  <div class="hint">First-time defaults — Admin: <b>admin123</b>, Staff: <b>staff123</b>. Admin should change them under Settings.</div>
   <div style="margin-top:12px"><button class="btn" style="width:100%" onclick="doLogin()">Sign in</button></div>
   <div id="loginErr" style="color:var(--red);font-size:13px;margin-top:8px"></div>
 </div>
@@ -170,7 +171,15 @@ button.btn.dark{background:#7a0f0f}
       <div><label>Amount (₹)</label><input id="f_amt" type="number" min="0" step="0.01"></div>
       <div><label>Payment mode</label><select id="f_mode"><option>Cash</option><option>Cheque</option><option>D.D.</option><option>UPI</option></select></div>
     </div>
-    <div id="refWrap" class="hidden" style="margin-top:10px"><label id="refLbl">Cheque / D.D. No.</label><input id="f_ref"></div>
+    <div id="refWrap" class="hidden" style="margin-top:10px"><label id="refLbl">Cheque / D.D. No.</label><input id="f_ref" autocomplete="off">
+     <div id="upiBlock" class="hidden upi-box">
+      <div class="hint" style="margin:0 0 6px">The UTR is a <b>12-digit</b> number and can be used for <b>only one receipt</b>. Attach the customer’s payment screenshot and it is read automatically, or type the UTR.</div>
+      <div class="row"><button class="btn sm sec" type="button" onclick="showPayQR()">📱 Show payment QR</button>
+       <label class="btn sm" style="margin:0;cursor:pointer">📷 Attach payment screenshot<input type="file" id="f_shot" accept="image/*" class="hidden" onchange="shotChosen(this)"></label>
+       <button class="btn sm sec hidden" id="shotClear" type="button" onclick="shotReset();updatePreview()">✕ Remove</button></div>
+      <div class="row" style="margin-top:6px;align-items:flex-start"><img id="shotThumb" class="hidden" alt="" style="max-height:90px;border:1px solid var(--line);border-radius:6px">
+       <div style="flex:1;min-width:160px"><div id="shotRes" class="hidden" style="border:1px solid var(--line);border-radius:8px;padding:6px 10px;margin-bottom:4px;background:#f8fbf8"><div id="resUtr" style="font-weight:700"></div><div id="resAmt" style="font-weight:700"></div></div><div id="utrState" class="hint"></div><div id="utrCands" class="row" style="margin-top:4px"></div><div id="utrDup" class="hint" style="font-weight:600"></div></div></div>
+     </div></div>
     <div style="margin-top:10px"><label>Sum of Rupees (auto)</label><input id="f_words" readonly style="background:#f3f6fc"></div>
     <div style="margin-top:10px"><label>Towards</label>
       <input id="f_towards" list="purposeList" placeholder="e.g. BWSSB pending water bill amount"><datalist id="purposeList"></datalist></div>
@@ -216,8 +225,9 @@ button.btn.dark{background:#7a0f0f}
       <button class="btn sm sec" onclick="printLedger()">🖨 Print ledger</button>
       <label class="row" style="margin:0"><input type="checkbox" id="q_void" style="width:auto" onchange="renderLedger()"> show voided</label>
     </div>
+    <div class="row noprint adm-only" style="margin-bottom:8px"><button class="btn sm dark" id="bulkDel" onclick="deleteSelected()" disabled>🗑 Delete selected (0)</button><button class="btn sm sec" onclick="selAll(true)">Select all shown</button><button class="btn sm sec" onclick="selAll(false)">Clear selection</button></div>
     <div class="scroll" id="ledgerPrint">
-    <table><thead><tr><th>No.</th><th>Date</th><th>Type</th><th>Received from</th><th>Flat</th><th>Towards</th><th>Mode</th><th style="text-align:right">Credit ₹</th><th style="text-align:right">Debit ₹</th><th style="text-align:right">Balance ₹</th><th class="noprint">Feed</th><th class="noprint">Actions</th></tr></thead>
+    <table><thead><tr><th class="noprint adm-only"><input type="checkbox" id="selAllBox" style="width:auto" onchange="selAll(this.checked)"></th><th>No.</th><th>Date</th><th>Type</th><th>Received from</th><th>Flat</th><th>Towards</th><th>Mode</th><th style="text-align:right">Credit ₹</th><th style="text-align:right">Debit ₹</th><th style="text-align:right">Balance ₹</th><th class="noprint">Feed</th><th class="noprint">Actions</th></tr></thead>
     <tbody id="ledgerBody"></tbody></table></div>
   </div>
 </section>
@@ -281,6 +291,7 @@ button.btn.dark{background:#7a0f0f}
     <div><label>Starting receipt number</label><input id="s_start" type="number" min="1"></div>
     <div><label>WhatsApp message template</label><textarea id="s_wa" rows="3"></textarea><div class="hint">Placeholders: {name} {flat} {amount} {towards} {date} {no} {assoc}</div></div>
     <div><label>Default country code (for 10-digit numbers)</label><input id="s_cc" placeholder="91"></div></div>
+    <div class="row" style="margin-top:12px"><button class="btn" onclick="saveSettings('assoc')">💾 Save details</button><span class="hint" id="msg_assoc"></span></div>
   </div>
   <div>
   <div class="card"><h2>Payment — UPI ID / QR (admin only)</h2>
@@ -291,6 +302,7 @@ button.btn.dark{background:#7a0f0f}
       <button class="btn sm sec" onclick="clearImg('qr')">Remove uploaded QR</button></div>
       <div class="hint">If an uploaded QR exists it is used. Otherwise a QR is generated from the UPI ID and includes the receipt amount.</div></div>
     <div class="row"><label class="row" style="margin:0"><input type="checkbox" id="s_qrdef" style="width:auto"> Tick “print QR” by default on new receipts</label></div></div>
+    <div class="row" style="margin-top:12px"><button class="btn" onclick="saveSettings('pay')">💾 Save payment settings</button><span class="hint" id="msg_pay"></span></div>
   </div>
   <div class="card"><h2>Bill data feeder — target system</h2>
     <div class="row"><label class="row" style="margin:0"><input type="checkbox" id="fd_on" style="width:auto"> Enable feeder</label>
@@ -309,12 +321,13 @@ button.btn.dark{background:#7a0f0f}
      <div><label>Bill file to keep / send</label><select id="fd_att"><option value="jpeg">JPEG image</option><option value="pdf">PDF</option><option value="none">No attachment (data only)</option></select></div>
      <div class="row fd-rt"><button class="btn sm sec" onclick="testFeeder()">Test connection</button><span id="fd_test" class="hint"></span></div>
      <div class="hint fd-r">Each receipt is sent as a POST containing flat, owner, mobile, amount, payment mode/reference, purpose, receipt no. and the bill file. The target must be an API/webhook that accepts these and allows requests from this page (CORS). Credentials are stored in this browser only — use a limited-scope token or API key, not a personal login.</div>
+    <div class="row"><button class="btn" onclick="saveSettings('feeder')">💾 Save feeder settings</button><span class="hint" id="msg_feeder"></span></div>
     </div>
   </div>
   <div class="card"><h2>Security & backup</h2>
     <div class="grid g2"><div><label>New Admin PIN</label><input id="s_apin" type="password" placeholder="leave blank to keep"></div>
     <div><label>New Staff PIN</label><input id="s_spin" type="password" placeholder="leave blank to keep"></div></div>
-    <div class="row" style="margin-top:12px"><button class="btn" onclick="saveSettings()">Save settings</button>
+    <div class="row" style="margin-top:12px"><button class="btn" onclick="saveSettings('security')">💾 Save security settings</button>
     <button class="btn sec" onclick="backup()">⬇ Backup all data (JSON)</button>
     <label class="btn sec" style="margin:0;cursor:pointer">⬆ Restore<input type="file" accept=".json" class="hidden" onchange="restore(this)"></label></div>
     <div class="hint">Data lives in this browser only. Take regular backups, and keep the file on the office computer that staff use. PINs only separate roles on a shared computer — they are not strong security.</div>
@@ -327,7 +340,7 @@ button.btn.dark{background:#7a0f0f}
    <label>Font style <span class="hint" id="fontCount"></span></label>
    <div id="fontChips" class="chips"></div>
    <div style="margin-top:10px"><label>Size of filled-in text: <b id="fsLbl"></b> px</label><input type="range" id="fs_range" min="12" max="30" step="1" oninput="fontDraftSize(this.value)"></div>
-   <div class="row" style="margin-top:10px"><button class="btn ok" onclick="applyFont()">✔ Apply to all receipts</button><button class="btn sec" onclick="fontInit()">Cancel changes</button><button class="btn sec" onclick="fontDefault()">Default</button></div>
+   <div class="row" style="margin-top:10px"><button class="btn ok" onclick="applyFont()">✔ Apply & save for all receipts</button><button class="btn sec" onclick="fontInit()">Cancel changes</button><button class="btn sec" onclick="fontDefault()">Default</button></div>
    <div class="hint" id="fontMsg"></div>
    <div class="hint">Changes are only shown in the preview until you click Apply. Fonts load from Google Fonts (internet needed the first time; if one cannot load, a similar system font is used). Kannada text uses Noto Sans Kannada.</div>
   </div>
@@ -344,19 +357,37 @@ button.btn.dark{background:#7a0f0f}
    <div><label>Bottom text</label><input id="s_seal_bot" maxlength="34" oninput="sealPreview()"></div>
    <div><label>Address line 1</label><input id="s_seal_l1" maxlength="30" oninput="sealPreview()"></div>
    <div><label>Address line 2</label><input id="s_seal_l2" maxlength="30" oninput="sealPreview()"></div>
-   <div><button class="btn" onclick="saveSettings()">Save settings</button></div>
+   <div class="row"><button class="btn" onclick="saveSettings('seal')">💾 Save seal settings</button><span class="hint" id="msg_seal"></span></div>
   </div></div>
  <div class="hint">The seal shows the date and time the receipt was saved (or last edited). Everything else on the receipt can be edited by admin, so the seal time lets you see when a bill was last changed.</div>
 </div>
 <div class="card"><h2>Receipt counter — admin only</h2>
  <div class="stats" style="grid-template-columns:1fr 1fr 1fr"><div class="stat"><span>Next receipt no.</span><b id="cr_cur">0001</b></div><div class="stat"><span>Receipts in ledger</span><b id="cr_cnt">0</b></div><div class="stat"><span>Series</span><b id="cr_ser">1</b></div></div>
- <div class="row"><input id="cr_next" type="number" min="1" placeholder="e.g. 101" style="max-width:130px"><button class="btn sm sec" onclick="counterSet()">Set next number</button></div>
+ <div class="row"><input id="cr_next" type="number" min="1" placeholder="e.g. 101" style="max-width:130px"><button class="btn sm sec" onclick="counterSet()">💾 Save next number</button></div>
  <div class="hint">You can only move the counter forward (it must be above the highest existing number).</div>
  <hr style="border:0;border-top:1px solid var(--line);margin:12px 0">
- <label class="row" style="margin:0 0 8px"><input type="checkbox" id="cr_remote" style="width:auto"> Also erase the receipts held in Turso (if connected)</label>
- <button class="btn dark" onclick="counterReset()">⚠ Complete reset to 0001</button>
- <div class="hint">Clears <b>all</b> receipts from the ledger and the built-in feeder store and restarts at 0001. A backup file (and a ZIP of bill files) is downloaded first, and you must type RESET to confirm. Flat directory and settings are kept. New receipts are filed in a new series (e.g. <code>S2-0001</code> in Turso / the API) so they never overwrite older records.</div>
+ <button class="btn dark" onclick="counterZero()">Reset counter to 0001</button>
+ <div class="hint">Works when the ledger is empty. To delete receipts <b>and</b> reset in one step, use “Clear / delete receipts” below.</div>
 </div></div>
+
+<div class="card"><h2>Clear / delete receipts &amp; reset counter — admin only</h2>
+ <div class="grid g2">
+  <div>
+   <label>What to delete</label>
+   <select id="cl_scope" onchange="clScopeChange()"><option value="all">All receipts (start fresh)</option><option value="upto">Old receipts — dated on or before a date</option><option value="void">Only voided receipts</option></select>
+   <div id="cl_dateWrap" class="hidden" style="margin-top:8px"><label>Delete receipts dated on or before</label><input type="date" id="cl_date" onchange="clPreview()"></div>
+   <div class="stat" style="margin-top:10px"><span>Receipts that will be deleted</span><b id="cl_n">0</b><span id="cl_amt"></span></div>
+  </div>
+  <div>
+   <label class="row" style="margin:4px 0;font-weight:500"><input type="checkbox" id="cl_backup" style="width:auto" checked> Download a backup first (recommended)</label>
+   <label class="row" style="margin:4px 0;font-weight:500"><input type="checkbox" id="cl_local" style="width:auto" checked> Also remove them from the built-in feeder store on this computer</label>
+   <label class="row" id="cl_remWrap" style="margin:4px 0;font-weight:500"><input type="checkbox" id="cl_remote" style="width:auto"> <span id="cl_remLbl">Also remove from Turso / target system</span></label>
+   <label class="row" style="margin:4px 0;font-weight:500"><input type="checkbox" id="cl_reset" style="width:auto" checked> Reset the counter to 0001 afterwards <span class="hint">(only when all receipts are deleted)</span></label>
+   <div style="margin-top:10px"><button class="btn dark" onclick="clearReceipts()">🗑 Delete receipts…</button> <span class="hint" id="cl_msg"></span></div>
+  </div>
+ </div>
+ <div class="hint" style="margin-top:8px">You will be asked to type DELETE to confirm. The flat directory and all settings are kept. To delete individual receipts, tick them in the Ledger (admin) and use “Delete selected”.</div>
+</div>
 
 <div class="card"><h2>Activity log</h2><div class="scroll" style="max-height:260px"><table><thead><tr><th>When</th><th>By</th><th>Action</th><th>Receipt</th><th>Flat</th><th>Note</th></tr></thead><tbody id="auditBody"></tbody></table></div></div>
 </section>
@@ -461,13 +492,14 @@ function init(){
  $('hdrLogo').innerHTML=logoHTML();$('hdrName').textContent=S.name;
  $('roleBadge').textContent=ROLE==='admin'?'ADMIN':'STAFF';
  $('tabSettings').classList.toggle('hidden',ROLE!=='admin');$('tabFeeder').classList.toggle('hidden',ROLE!=='admin');
+ document.querySelectorAll('.adm-only').forEach(e=>e.classList.toggle('hidden',ROLE!=='admin'));
  loadSettingsForm();resetForm();renderLedger();refreshLists();showTab('bill');
 }
 function showTab(t){
  if((t==='settings'||t==='feeder')&&ROLE!=='admin')return;
  ['bill','ledger','flats','feeder','settings'].forEach(x=>$('tab-'+x).classList.toggle('hidden',x!==t));
  document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));
- if(t==='ledger')renderLedger();if(t==='flats')renderFlats();if(t==='feeder')renderFeeder();if(t==='settings'){fontInit();sealPreview();renderCounter();renderAudit()}
+ if(t==='ledger')renderLedger();if(t==='flats')renderFlats();if(t==='feeder')renderFeeder();if(t==='settings'){fontInit();sealPreview();renderCounter();renderAudit();clPreview()}
 }
 
 /* ============ Bill form ============ */
@@ -476,6 +508,7 @@ function resetForm(){
  $('f_no').value=pad(nextNo());$('f_date').value=today();$('f_type').value='Credit';$('f_flat').value='';$('f_name').value='';$('f_mobile').value='';
  $('f_amt').value='';$('f_mode').value='Cash';$('f_ref').value='';$('f_towards').value='';
  $('f_pres').value=S.pres||'';$('f_recv').value=S.recv||'';$('f_qr').checked=!!S.qrdef;$('formMsg').textContent='';
+ shotReset();
  updatePreview();
 }
 function readForm(){
@@ -487,24 +520,36 @@ function readForm(){
 function updatePreview(){
  const m=$('f_mode').value;
  $('refWrap').classList.toggle('hidden',m==='Cash');
- $('refLbl').textContent=m==='UPI'?'UPI transaction / reference ID':'Cheque / D.D. No.';
+ $('refLbl').textContent=m==='UPI'?'UPI UTR / transaction reference (12 digits)':'Cheque / D.D. No.';
+ $('upiBlock').classList.toggle('hidden',m!=='UPI');if(m==='UPI')utrLocalHint();
  const b=readForm();$('f_words').value=b.words;
  const host=$('livePreview');host.innerHTML=receiptHTML(b,'live');drawQRs(host);
 }
 ['f_no','f_date','f_type','f_flat','f_name','f_amt','f_mode','f_ref','f_towards','f_pres','f_recv','f_qr'].forEach(id=>{
  document.addEventListener('DOMContentLoaded',()=>{const e=$(id);e.addEventListener('input',updatePreview);e.addEventListener('change',updatePreview)});
 });
-function saveBill(){
+async function saveBill(){
  const b=readForm();
  if(!b.name){return msg('Please enter the name (Received from).')}
  if(!(b.amount>0)){return msg('Please enter a valid amount.')}
  if(!b.towards){return msg('Please enter what the payment is towards.')}
  if(!(b.no>0)){return msg('Enter a valid receipt number (e.g. 0001).')}
- if(b.mode!=='Cash'&&!b.ref&&!confirm('No cheque/D.D./UPI reference entered. Save anyway?'))return;
+ if(b.mode!=='Cash'&&b.mode!=='UPI'&&!b.ref&&!confirm('No cheque/D.D. number entered. Save anyway?'))return;
+ if(b.mode==='UPI'){
+  const u=(b.ref||'').replace(/\D/g,'');
+  if(!/^\d{12}$/.test(u))return msg('A UPI receipt needs the 12-digit UTR — type it or attach the customer’s payment screenshot.');
+  b.ref=u;b.utr=u;
+  $('saveBtn').disabled=true;msg('Checking that this UTR has not been used before…');$('formMsg').style.color='';
+  let c;try{c=await utrCheck(u,EDIT_ID?BILLS.find(x=>x.id===EDIT_ID):null)}finally{$('saveBtn').disabled=false}
+  if(c.dup)return msg('✖ UTR '+u+' is already recorded against receipt '+c.no+' ('+c.info+') in '+c.where+'. A UTR can be used only once.');
+  if(c.unverified&&!confirm('Could not check this UTR against Turso / the API:\n'+c.unverified+'\n\nSave anyway? (A duplicate is still rejected when it syncs.)'))return;
+  if(SHOT&&SHOT_AMTS&&SHOT_AMTS.length&&!SHOT_AMTS.includes(Number(b.amount))&&!confirm('The screenshot shows ₹'+SHOT_AMTS[0].toLocaleString('en-IN')+' but this receipt is for ₹'+Number(b.amount).toLocaleString('en-IN')+'.\n\nSave anyway? (OK = yes, Cancel = go back and fix the amount)'))return msg('✖ Amount does not match the screenshot — correct it (tap “Use ₹…”) or confirm to save anyway.');
+  $('formMsg').textContent='';
+ }else b.utr='';
  if(EDIT_ID)return saveEdit(b);
  if(BILLS.some(x=>String(x.no)===String(b.no))){return msg('Receipt No. '+pad(b.no)+' already exists. Use the next number.')}
  b.id='b'+Date.now();b.createdAt=new Date().toISOString();b.createdBy=ROLE;b.series=S.series||1;b.sealedAt=b.createdAt;
- BILLS.push(b);saveB();log('create',b);upsertFlat(b.flat,b.name,b.mobile);refreshLists();renderLedger();
+ BILLS.push(b);saveB();log('create',b);if(SHOT){try{await SHOTS.put(feedNo(b),SHOT.blob);b.hasShot=true;saveB()}catch(_){}}upsertFlat(b.flat,b.name,b.mobile);refreshLists();renderLedger();
  openReceipt(b.id,true);resetForm();
  if(S.fd_on&&S.fd_auto)pushBill(b.id);
 }
@@ -575,13 +620,13 @@ function renderLedger(){
   const v=b.status==='void';let c='',d='';
   if(!v){cnt++;if(b.type==='Credit'){cr+=b.amount;bal+=b.amount;c=b.amount}else{dr+=b.amount;bal-=b.amount;d=b.amount}}
   else{b.type==='Credit'?c=b.amount:d=b.amount}
-  return `<tr class="${v?'void':''}"><td>${esc(pad(b.no))}${b.editCount?' <span class="tag v" title="Edited '+esc(b.editedAt||'')+'">edited</span>':''}</td><td>${fmtDate(b.date)}</td><td><span class="tag ${v?'v':b.type==='Credit'?'c':'d'}">${v?'VOID':b.type}</span></td>
-  <td>${esc(b.name)}</td><td>${esc(b.flat)}</td><td>${esc(b.towards)}</td><td>${esc(b.mode)}${b.ref?'<br><small>'+esc(b.ref)+'</small>':''}</td>
+  return `<tr class="${v?'void':''}">${ROLE==='admin'?`<td class="noprint"><input type="checkbox" class="rsel" style="width:auto" data-id="${b.id}" onchange="selChanged()"></td>`:''}<td>${esc(pad(b.no))}${b.editCount?' <span class="tag v" title="Edited '+esc(b.editedAt||'')+'">edited</span>':''}</td><td>${fmtDate(b.date)}</td><td><span class="tag ${v?'v':b.type==='Credit'?'c':'d'}">${v?'VOID':b.type}</span></td>
+  <td>${esc(b.name)}</td><td>${esc(b.flat)}</td><td>${esc(b.towards)}</td><td>${esc(b.mode)}${b.ref?'<br><small>'+esc(b.ref)+'</small>':''}${b.hasShot?`<br><a href="#" onclick="viewShot('${b.id}');return false">📎 proof</a>`:''}</td>
   <td style="text-align:right">${c!==''?c.toLocaleString('en-IN'):''}</td><td style="text-align:right">${d!==''?d.toLocaleString('en-IN'):''}</td>
   <td style="text-align:right">${v?'':bal.toLocaleString('en-IN')}</td>
   <td class="noprint">${feedCell(b)}</td><td class="noprint"><button class="btn sm sec" onclick="openReceipt('${b.id}')">View/Print</button>
-  ${adminBtns(b)}</td></tr>`}).join('')||'<tr><td colspan="12" style="text-align:center;color:#889;padding:24px">No receipts found.</td></tr>';
- $('st_cnt').textContent=cnt;$('st_cr').textContent=inr(cr);$('st_dr').textContent=inr(dr);$('st_net').textContent=inr(cr-dr);
+  ${adminBtns(b)}</td></tr>`}).join('')||'<tr><td colspan="13" style="text-align:center;color:#889;padding:24px">No receipts found.</td></tr>';
+ $('st_cnt').textContent=cnt;$('st_cr').textContent=inr(cr);$('st_dr').textContent=inr(dr);$('st_net').textContent=inr(cr-dr);selChanged();
 }
 function voidBill(id){
  const b=BILLS.find(x=>x.id===id);if(!b)return;
@@ -619,19 +664,33 @@ function loadImg(inp,key){
   };img.src=r.result};r.readAsDataURL(f);
 }
 function clearImg(k){S[k]='';prevImgs()}
-function saveSettings(){
- ['name','kn','addr','mob','pres','recv','upi','payee','seal_top','seal_bot','seal_l1','seal_l2'].forEach(k=>S[k]=$('s_'+k).value.trim());
- S.seal_on=$('s_seal_on').checked;
- S.start=Number($('s_start').value)||1;S.qrdef=$('s_qrdef').checked;
- if($('s_apin').value){if($('s_apin').value.length<4)return alert('Admin PIN must be at least 4 characters.');S.apin=$('s_apin').value}
- if($('s_spin').value){if($('s_spin').value.length<4)return alert('Staff PIN must be at least 4 characters.');S.spin=$('s_spin').value}
- $('s_apin').value=$('s_spin').value='';
- readFeeder();
- if(S.fd_on&&S.fd_mode==='turso'&&!tursoCfg().ok)return alert('Replace the default Turso URL and token with your own (or switch the feeder mode).');
- if(S.fd_on&&S.fd_mode==='remote'&&!/^https?:\/\//i.test(S.fd_url))return alert('Enter a valid Target URL (starting with https://) or turn the feeder off.');
- try{saveS()}catch(e){return alert('Could not save — images may be too large.')}
- $('hdrLogo').innerHTML=logoHTML();$('hdrName').textContent=S.name;$('setMsg').textContent='Settings saved ✔';
- setTimeout(()=>$('setMsg').textContent='',3000);resetForm();prevImgs();
+function saveSettings(sec){
+ const all=!sec,has=s=>all||sec===s,snap={...S};
+ const fail=m=>{Object.assign(S,snap);alert(m);return false};
+ if(has('assoc')){
+  ['name','kn','addr','mob','pres','recv'].forEach(k=>S[k]=$('s_'+k).value.trim());
+  S.start=Number($('s_start').value)||1;S.wa_tpl=$('s_wa').value.trim()||defaults.wa_tpl;S.cc=$('s_cc').value.replace(/\D/g,'')||'91';
+ }
+ if(has('pay')){['upi','payee'].forEach(k=>S[k]=$('s_'+k).value.trim());S.qrdef=$('s_qrdef').checked}
+ if(has('seal')){['seal_top','seal_bot','seal_l1','seal_l2'].forEach(k=>S[k]=$('s_'+k).value.trim());S.seal_on=$('s_seal_on').checked}
+ if(has('security')){
+  const ap=$('s_apin').value,sp=$('s_spin').value;
+  if(ap&&ap.length<4)return fail('Admin PIN must be at least 4 characters.');
+  if(sp&&sp.length<4)return fail('Staff PIN must be at least 4 characters.');
+  if(ap)S.apin=ap;if(sp)S.spin=sp;$('s_apin').value=$('s_spin').value='';
+ }
+ if(has('feeder')){
+  readFeeder();
+  if(S.fd_on&&S.fd_mode==='turso'&&!tursoCfg().ok)return fail('Replace the default Turso URL and token with your own (or switch the feeder mode).');
+  if(S.fd_on&&S.fd_mode==='remote'&&!/^https?:\/\//i.test(S.fd_url))return fail('Enter a valid Target URL (starting with https://) or turn the feeder off.');
+ }
+ try{saveS()}catch(e){return fail('Could not save — images may be too large.')}
+ $('hdrLogo').innerHTML=logoHTML();$('hdrName').textContent=S.name;
+ const el=$(sec&&sec!=='security'?'msg_'+sec:'setMsg');
+ if(el){el.textContent='Saved ✔';el.style.color='var(--ok)';setTimeout(()=>{el.textContent=''},3000)}
+ if(!EDIT_ID&&!$('f_name').value&&!$('f_amt').value)resetForm();else updatePreview();
+ prevImgs();sealPreview();renderCounter();
+ return true;
 }
 function backup(){dl('bda_backup_'+today()+'.json',JSON.stringify({settings:{...S,fd_pass:'',tu_token:''},bills:BILLS,flats:FLATS},null,1),'application/json')}
 function restore(inp){
@@ -821,11 +880,11 @@ async function testFeeder(){
 
 /* ============ Built-in feeder store (IndexedDB) ============ */
 const IDB={db:null,
- open(){return this.db?Promise.resolve(this.db):new Promise((res,rej)=>{const r=indexedDB.open('bda_feeder',1);
-  r.onupgradeneeded=()=>r.result.createObjectStore('records',{keyPath:'key'});
+ open(){return this.db?Promise.resolve(this.db):new Promise((res,rej)=>{const r=indexedDB.open('bda_feeder',2);
+  r.onupgradeneeded=()=>{const d=r.result;if(!d.objectStoreNames.contains('records'))d.createObjectStore('records',{keyPath:'key'});if(!d.objectStoreNames.contains('shots'))d.createObjectStore('shots')};
   r.onsuccess=()=>{this.db=r.result;res(this.db)};r.onerror=()=>rej(r.error)})},
- async tx(mode,fn){const d=await this.open();return new Promise((res,rej)=>{const t=d.transaction('records',mode);let out;
-  const rq=fn(t.objectStore('records'));if(rq)rq.onsuccess=()=>out=rq.result;
+ async tx(mode,fn,store){const d=await this.open();return new Promise((res,rej)=>{const t=d.transaction(store||'records',mode);let out;
+  const rq=fn(t.objectStore(store||'records'));if(rq)rq.onsuccess=()=>out=rq.result;
   t.oncomplete=()=>res(out);t.onerror=()=>rej(t.error);t.onabort=()=>rej(t.error)})},
  put(r){return this.tx('readwrite',s=>s.put(r))},get(k){return this.tx('readonly',s=>s.get(k))},
  all(){return this.tx('readonly',s=>s.getAll())},del(k){return this.tx('readwrite',s=>s.delete(k))},clear(){return this.tx('readwrite',s=>s.clear())}};
@@ -922,25 +981,36 @@ async function tursoExec(stmts){
 const TURSO_SCHEMA=[
  `CREATE TABLE IF NOT EXISTS receipts(receipt_no TEXT PRIMARY KEY, receipt_date TEXT, type TEXT, flat TEXT, flat_key TEXT, owner_name TEXT, mobile TEXT,
    amount REAL, amount_in_words TEXT, payment_mode TEXT, reference TEXT, towards TEXT, president TEXT, receiver TEXT, status TEXT,
-   created_at TEXT, synced_at TEXT, bill_name TEXT, bill_mime TEXT, bill_b64 TEXT)`,
+   created_at TEXT, synced_at TEXT, bill_name TEXT, bill_mime TEXT, bill_b64 TEXT, utr TEXT)`,
  `CREATE INDEX IF NOT EXISTS idx_receipts_flat ON receipts(flat_key)`,
  `CREATE TABLE IF NOT EXISTS flats(flat_key TEXT PRIMARY KEY, flat TEXT, owner_name TEXT, mobile TEXT, updated_at TEXT)`];
+let TURSO_OK='';
+async function tursoEnsure(){
+ const key=tursoCfg().url;if(TURSO_OK===key)return;
+ await tursoExec(TURSO_SCHEMA.map(sql=>({sql})));
+ try{await tursoExec([{sql:'ALTER TABLE receipts ADD COLUMN utr TEXT'}])}catch(e){if(!/duplicate column/i.test(e.message))throw e}
+ await tursoExec([{sql:'CREATE UNIQUE INDEX IF NOT EXISTS ux_receipts_utr ON receipts(utr)'}]);
+ TURSO_OK=key;
+}
 async function tursoSync(b,rec,event){
  let bn=null,bm=null,bb=null;
  if(rec&&rec.file){bb=await b64(rec.file.blob);bn=rec.file.name;bm=rec.file.mime}
+ await tursoEnsure();
  const t=new Date().toISOString(),fk=normFlat(b.flat),st=event==='receipt.voided'?'void':(b.status||'active');
- await tursoExec([...TURSO_SCHEMA.map(sql=>({sql})),
-  {sql:`INSERT INTO receipts(receipt_no,receipt_date,type,flat,flat_key,owner_name,mobile,amount,amount_in_words,payment_mode,reference,towards,president,receiver,status,created_at,synced_at,bill_name,bill_mime,bill_b64)
-   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+ try{
+ await tursoExec([
+  {sql:`INSERT INTO receipts(receipt_no,receipt_date,type,flat,flat_key,owner_name,mobile,amount,amount_in_words,payment_mode,reference,towards,president,receiver,status,created_at,synced_at,bill_name,bill_mime,bill_b64,utr)
+   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
    ON CONFLICT(receipt_no) DO UPDATE SET receipt_date=excluded.receipt_date,type=excluded.type,flat=excluded.flat,flat_key=excluded.flat_key,
     owner_name=excluded.owner_name,mobile=excluded.mobile,amount=excluded.amount,amount_in_words=excluded.amount_in_words,payment_mode=excluded.payment_mode,
-    reference=excluded.reference,towards=excluded.towards,president=excluded.president,receiver=excluded.receiver,status=excluded.status,synced_at=excluded.synced_at,
+    reference=excluded.reference,towards=excluded.towards,president=excluded.president,receiver=excluded.receiver,status=excluded.status,synced_at=excluded.synced_at,utr=excluded.utr,
     bill_name=COALESCE(excluded.bill_name,receipts.bill_name),bill_mime=COALESCE(excluded.bill_mime,receipts.bill_mime),bill_b64=COALESCE(excluded.bill_b64,receipts.bill_b64)`,
-   args:[feedNo(b),b.date||'',b.type||'Credit',b.flat||'',fk,b.name||'',b.mobile||'',Number(b.amount)||0,b.words||'',b.mode||'',b.ref||'',b.towards||'',b.president||'',b.receiver||'',st,b.createdAt||t,t,bn,bm,bb]},
+   args:[feedNo(b),b.date||'',b.type||'Credit',b.flat||'',fk,b.name||'',b.mobile||'',Number(b.amount)||0,b.words||'',b.mode||'',b.ref||'',b.towards||'',b.president||'',b.receiver||'',st,b.createdAt||t,t,bn,bm,bb,b.utr||null]},
   {sql:`INSERT INTO flats(flat_key,flat,owner_name,mobile,updated_at) VALUES(?,?,?,?,?)
    ON CONFLICT(flat_key) DO UPDATE SET owner_name=CASE WHEN excluded.owner_name!='' THEN excluded.owner_name ELSE flats.owner_name END,
     mobile=CASE WHEN excluded.mobile!='' THEN excluded.mobile ELSE flats.mobile END,updated_at=excluded.updated_at`,
    args:[fk,b.flat||'',b.name||'',b.mobile||'',t]}]);
+ }catch(e){if(/UNIQUE.*utr/i.test(e.message))throw new Error('Duplicate UTR — this UTR is already recorded in Turso against another receipt.');throw e}
 }
 
 /* ============ Activity log ============ */
@@ -967,7 +1037,7 @@ function adminBtns(b){
 }
 function startEdit(id){
  if(ROLE!=='admin')return;const b=BILLS.find(x=>x.id===id);if(!b)return;
- closeModal();showTab('bill');EDIT_ID=id;
+ closeModal();showTab('bill');EDIT_ID=id;shotReset();
  $('f_no').value=pad(b.no);$('f_no').readOnly=true;$('f_date').value=b.date||'';$('f_type').value=b.type||'Credit';$('f_flat').value=b.flat||'';$('f_name').value=b.name||'';
  $('f_mobile').value=b.mobile||'';$('f_amt').value=b.amount||'';$('f_mode').value=b.mode||'Cash';$('f_ref').value=b.ref||'';$('f_towards').value=b.towards||'';
  $('f_pres').value=b.president||'';$('f_recv').value=b.receiver||'';$('f_qr').checked=!!b.showQR;
@@ -977,12 +1047,13 @@ function startEdit(id){
 function exitEdit(){
  EDIT_ID='';$('f_no').readOnly=false;$('editBanner').classList.add('hidden');$('saveBtn').textContent='💾 Save & Generate Receipt';resetForm();
 }
-function saveEdit(nb){
+async function saveEdit(nb){
  if(ROLE!=='admin')return msg('Only admin can edit receipts.');
  const b=BILLS.find(x=>x.id===EDIT_ID);if(!b){exitEdit();return msg('That receipt no longer exists.')}
  const keep={id:b.id,no:b.no,createdAt:b.createdAt,createdBy:b.createdBy,series:b.series,status:b.status,push:b.push,editCount:b.editCount};
  const before=`${b.name}/${b.flat}/₹${b.amount}/${b.mode}`;
  Object.assign(b,nb,keep);
+ if(SHOT){try{await SHOTS.put(feedNo(b),SHOT.blob);b.hasShot=true}catch(_){}}
  b.editedAt=new Date().toISOString();b.editedBy=ROLE;b.editCount=(b.editCount||0)+1;b.sealedAt=b.editedAt;
  saveB();upsertFlat(b.flat,b.name,b.mobile);log('edit',b,'was '+before);refreshLists();renderLedger();
  const id=b.id;exitEdit();openReceipt(id,true);
@@ -997,7 +1068,7 @@ function restoreBill(id){
 async function feedDelete(b){
  if(!S.fd_on)return'ok';const key=feedNo(b);
  try{
-  await IDB.del(key);
+  await IDB.del(key);try{await SHOTS.del(key)}catch(_){}
   if(S.fd_mode==='turso'&&tursoCfg().ok)await tursoExec([{sql:'DELETE FROM receipts WHERE receipt_no=?',args:[key]}]);
   else if(S.fd_mode==='remote'&&/^https?:\/\//i.test(S.fd_url||'')){
    const r=await postTarget({event:'receipt.deleted',association:S.name,receipt_no:key,flat:b.flat||'-',amount:b.amount||0},null);
@@ -1016,29 +1087,13 @@ async function deleteBill(id){
 
 /* ============ Counter reset (admin) ============ */
 function renderCounter(){
- if(!$('cr_cur'))return;$('cr_cur').textContent=pad(nextNo());$('cr_cnt').textContent=BILLS.length;$('cr_ser').textContent=S.series||1;
+ if(!$('cr_cur'))return;if($('s_start'))$('s_start').value=S.start||1;$('cr_cur').textContent=pad(nextNo());$('cr_cnt').textContent=BILLS.length;$('cr_ser').textContent=S.series||1;
 }
 function counterSet(){
  if(ROLE!=='admin')return;
  const n=parseInt($('cr_next').value,10),mx=Math.max(0,...BILLS.map(b=>Number(b.no)||0));
  if(!(n>mx))return alert('The next number must be higher than the highest existing receipt ('+pad(mx)+'). To start again from 0001 use “Complete reset”.');
  S.start=n;saveS();log('counter',null,'next number set to '+pad(n));$('cr_next').value='';resetForm();renderCounter();renderAudit();
-}
-async function counterReset(){
- if(ROLE!=='admin')return;
- if(!confirm('COMPLETE RESET\n\nThis permanently clears ALL receipts from the ledger and the built-in feeder store, and restarts numbering at 0001.\nA backup file will be downloaded first.\n\nContinue?'))return;
- const t=prompt('Type RESET (capital letters) to confirm:');
- if(t!=='RESET')return alert('Cancelled — nothing was changed.');
- const n=BILLS.length;
- backup();
- try{const all=await IDB.all();if(all.length&&window.JSZip){$('fs_q').value='';await feederZip()}}catch(e){}
- BILLS=[];saveB();try{await IDB.clear()}catch(_){}
- let warn='';
- if($('cr_remote').checked&&S.fd_mode==='turso'&&tursoCfg().ok){try{await tursoExec([{sql:'DELETE FROM receipts'}])}catch(e){warn='\nTurso could not be cleared: '+e.message}}
- S.start=1;S.series=(S.series||1)+1;saveS();
- log('reset',null,n+' receipts cleared; series '+S.series);
- resetForm();renderLedger();renderCounter();renderAudit();
- alert('Reset complete. '+n+' receipt(s) cleared. The next receipt is '+pad(nextNo())+'.'+warn);
 }
 
 /* ============ Fonts ============ */
@@ -1127,20 +1182,245 @@ function sealPreview(){
  $('sealPrev').style.opacity=$('s_seal_on').checked?1:.35;
 }
 
+/* ============ Bulk delete / clear receipts ============ */
+function remoteReady(){return !!S.fd_on&&((S.fd_mode==='turso'&&tursoCfg().ok)||(S.fd_mode==='remote'&&/^https?:\/\//i.test(S.fd_url||'')))}
+async function purgeBills(list,o){
+ o=o||{};const ids=new Set(list.map(b=>b.id));
+ BILLS=BILLS.filter(b=>!ids.has(b.id));saveB();
+ let warn='',remoteOk=true;
+ try{if(typeof SHOTS!=='undefined'){if(o.wipeLocal)await SHOTS.clear();else for(const b of list)await SHOTS.del(feedNo(b))}}catch(_){}
+ if(o.local){try{if(o.wipeLocal)await IDB.clear();else for(const b of list)await IDB.del(feedNo(b))}catch(e){warn+='\nBuilt-in feeder store: '+e.message}}
+ if(o.remote&&remoteReady()){
+  try{
+   if(S.fd_mode==='turso'){
+    if(o.wipeRemote)await tursoExec([{sql:'DELETE FROM receipts'}]);
+    else{const keys=list.map(feedNo),st=[];for(let i=0;i<keys.length;i+=50){const ch=keys.slice(i,i+50);st.push({sql:`DELETE FROM receipts WHERE receipt_no IN (${ch.map(()=>'?').join(',')})`,args:ch})}if(st.length)await tursoExec(st)}
+   }else{
+    for(const b of list){const r=await postTarget({event:'receipt.deleted',association:S.name,receipt_no:feedNo(b),flat:b.flat||'-',amount:b.amount||0},null);if(!r.ok)throw new Error('target replied HTTP '+r.status+' for receipt '+pad(b.no))}
+   }
+  }catch(e){remoteOk=false;warn+='\nRemote store: '+(e.message||e)+' — deleted here, but may still exist there.'}
+ }
+ return{warn,remoteOk};
+}
+const selIds=()=>[...document.querySelectorAll('#ledgerBody .rsel:checked')].map(c=>c.dataset.id);
+function selChanged(){
+ const n=selIds().length,b=$('bulkDel');if(b){b.disabled=!n;b.textContent='🗑 Delete selected ('+n+')'}
+ const all=document.querySelectorAll('#ledgerBody .rsel'),a=$('selAllBox');if(a)a.checked=all.length>0&&n===all.length;
+}
+function selAll(on){document.querySelectorAll('#ledgerBody .rsel').forEach(c=>c.checked=on);selChanged()}
+function afterPurge(){renderLedger();renderFlats();renderCounter();renderAudit();refreshLists();if(!$('tab-feeder').classList.contains('hidden'))renderFeeder();clPreview()}
+async function deleteSelected(){
+ if(ROLE!=='admin')return;
+ const ids=new Set(selIds()),list=BILLS.filter(b=>ids.has(b.id));if(!list.length)return;
+ const tot=list.filter(b=>b.type==='Credit'&&b.status!=='void').reduce((s,b)=>s+b.amount,0);
+ if(!confirm(`PERMANENTLY delete ${list.length} selected receipt(s) (credit ${inr(tot)})?\n\nThis cannot be undone. A backup file is downloaded first.`))return;
+ if(list.length>=5&&prompt('Type DELETE (capital letters) to confirm:')!=='DELETE')return alert('Cancelled — nothing was changed.');
+ backup();
+ const r=await purgeBills(list,{local:true,remote:true});
+ log('delete',null,list.length+' selected receipts: '+list.map(b=>pad(b.no)).join(', ').slice(0,150));
+ afterPurge();if(r.warn)alert('Deleted.'+r.warn);
+}
+function clList(){
+ const sc=$('cl_scope').value;
+ if(sc==='all')return BILLS.slice();
+ if(sc==='void')return BILLS.filter(b=>b.status==='void');
+ const d=$('cl_date').value;return d?BILLS.filter(b=>b.date&&b.date<=d):[];
+}
+function clScopeChange(){if($('cl_scope').value==='all')$('cl_reset').checked=true;clPreview()}
+function clPreview(){
+ if(!$('cl_n'))return;const sc=$('cl_scope').value,list=clList();
+ $('cl_dateWrap').classList.toggle('hidden',sc!=='upto');
+ $('cl_n').textContent=list.length;
+ const cr=list.filter(b=>b.type==='Credit'&&b.status!=='void').reduce((s,b)=>s+b.amount,0);
+ $('cl_amt').textContent=list.length?' · credit '+inr(cr):'';
+ const r=$('cl_reset');r.disabled=sc!=='all';if(sc!=='all')r.checked=false;
+ $('cl_remWrap').classList.toggle('hidden',!remoteReady());
+ $('cl_remLbl').textContent=S.fd_mode==='turso'?(sc==='all'?'Also erase ALL receipts in Turso (the whole receipts table)':'Also remove these receipts from Turso'):'Also remove these receipts from the target system (API)';
+}
+async function clearReceipts(){
+ if(ROLE!=='admin')return;
+ const list=clList(),sc=$('cl_scope').value;
+ if(!list.length)return alert(sc==='upto'&&!$('cl_date').value?'Choose the cut-off date first.':'No receipts match — nothing to delete.');
+ const doReset=sc==='all'&&$('cl_reset').checked;
+ if(!confirm(`DELETE ${list.length} receipt(s) permanently?`+(doReset?'\nThe receipt counter will restart at 0001.':'')+'\n\nThis cannot be undone.'))return;
+ if(prompt('Type DELETE (capital letters) to confirm:')!=='DELETE')return alert('Cancelled — nothing was changed.');
+ $('cl_msg').textContent='Working…';
+ if($('cl_backup').checked){
+  backup();
+  try{const all=await IDB.all();if(all.length&&window.JSZip){$('fs_q').value='';await feederZip()}}catch(_){}
+ }
+ let localHas=false;try{localHas=(await IDB.all()).length>0}catch(_){}
+ const wantRemote=$('cl_remote').checked&&remoteReady(),wipeAll=sc==='all';
+ const r=await purgeBills(list,{local:$('cl_local').checked,remote:wantRemote,wipeLocal:wipeAll&&$('cl_local').checked,wipeRemote:wipeAll&&wantRemote&&S.fd_mode==='turso'});
+ let note=list.length+' receipt(s) deleted.';
+ if(doReset){
+  const leftover=(!$('cl_local').checked&&localHas)||(remoteReady()&&!(wantRemote&&r.remoteOk));
+  S.start=1;if(leftover)S.series=(S.series||1)+1;saveS();
+  note+=' Counter reset — next receipt is '+pad(nextNo())+(leftover?' (new series '+S.series+' so older stored records are not overwritten).':'.');
+ }
+ log('clear',null,`${sc}: ${list.length} deleted${doReset?'; counter reset':''}`);
+ resetForm();afterPurge();
+ $('cl_msg').textContent=note;$('cl_msg').style.color='var(--ok)';
+ alert(note+(r.warn?'\n'+r.warn:''));
+}
+async function counterZero(){
+ if(ROLE!=='admin')return;
+ if(BILLS.length)return alert('There are still '+BILLS.length+' receipt(s) in the ledger. Delete them first (use “Clear / delete receipts” below, which can reset the counter in the same step).');
+ if(!confirm('Reset the receipt counter to 0001?'))return;
+ let leftover=remoteReady();try{if((await IDB.all()).length)leftover=true}catch(_){}
+ S.start=1;if(leftover)S.series=(S.series||1)+1;saveS();log('counter',null,'reset to 0001'+(leftover?' (series '+S.series+')':''));
+ resetForm();renderCounter();renderAudit();alert('Counter reset. The next receipt is '+pad(nextNo())+'.');
+}
+
+/* ============ UPI: UTR reading, uniqueness check, payment QR ============ */
+let SHOT=null,OCR_BUSY=false,SHOT_AMTS=null;
+const SHOTS={put(k,blob){return IDB.tx('readwrite',s=>s.put(blob,k),'shots')},get(k){return IDB.tx('readonly',s=>s.get(k),'shots')},
+ del(k){return IDB.tx('readwrite',s=>s.delete(k),'shots')},clear(){return IDB.tx('readwrite',s=>s.clear(),'shots')}};
+function shotReset(){
+ SHOT=null;OCR_BUSY=false;SHOT_AMTS=null;if($('shotRes'))$('shotRes').classList.add('hidden');
+ if($('f_shot'))$('f_shot').value='';
+ ['shotThumb','shotClear'].forEach(i=>$(i)&&$(i).classList.add('hidden'));
+ ['utrState','utrDup'].forEach(i=>{if($(i))$(i).textContent=''});if($('utrCands'))$('utrCands').innerHTML='';
+}
+function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=()=>rej(new Error('Could not load the text-reading library (needs internet)'));document.head.appendChild(s)})}
+let OCRW=null,OCRCB=null;
+async function ocrWorker(){
+ if(OCRW)return OCRW;
+ if(!window.Tesseract)await loadScript('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js');
+ try{OCRW=await Tesseract.createWorker('eng',1,{logger:m=>{if(m.status==='recognizing text'&&OCRCB)OCRCB(Math.round(m.progress*100))}})}
+ catch(e){OCRW=null;throw new Error('Could not start the text reader (needs internet the first time)')}
+ return OCRW;
+}
+async function runOCR(canvas,cb){OCRCB=cb;const w=await ocrWorker();const r=await w.recognize(canvas);return(r&&r.data&&r.data.text)||''}
+async function imgToCanvas(file,max){
+ const url=URL.createObjectURL(file);
+ try{
+  const img=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=()=>rej(new Error('Could not read this image'));i.src=url});
+  const k=Math.min(1,max/Math.max(img.width,img.height)),c=document.createElement('canvas');
+  c.width=Math.max(1,Math.round(img.width*k));c.height=Math.max(1,Math.round(img.height*k));c.getContext('2d').drawImage(img,0,0,c.width,c.height);return c;
+ }finally{URL.revokeObjectURL(url)}
+}
+function prepOCR(src){ // grayscale, upscale small images, invert dark-mode screenshots
+ const sc=src.width<1000?2:1,c=document.createElement('canvas');c.width=src.width*sc;c.height=src.height*sc;
+ const x=c.getContext('2d');x.drawImage(src,0,0,c.width,c.height);
+ const d=x.getImageData(0,0,c.width,c.height),p=d.data;let sum=0;
+ for(let i=0;i<p.length;i+=4){const g=.299*p[i]+.587*p[i+1]+.114*p[i+2];p[i]=p[i+1]=p[i+2]=g;sum+=g}
+ if(sum/(p.length/4)<120)for(let i=0;i<p.length;i+=4){p[i]=p[i+1]=p[i+2]=255-p[i]}
+ x.putImageData(d,0,0);return c;
+}
+function parseUTR(text){
+ const t=String(text||'').replace(/\r/g,''),flat=t.replace(/\s*\n\s*/g,' \n ');
+ const fix=s=>s.replace(/[Oo]/g,'0').replace(/[Il|]/g,'1').replace(/S/g,'5').replace(/B/g,'8').replace(/\s+/g,'');
+ const out=[],seen=new Set();let m;
+ const add=(u,why)=>{if(/^\d{12}$/.test(u)&&!seen.has(u)){seen.add(u);out.push({utr:u,why})}};
+ const lab=/(UTR(?:\s*(?:No|Number|ID))?|UPI\s*Ref(?:erence)?(?:\s*(?:No|Number|ID))?|Ref(?:erence)?\s*(?:No|Number|ID)|RRN|(?:UPI\s*)?Trans(?:action)?\s*ID|Txn\s*ID)\s*[:.\-#]?\s*([0-9OoIl|SB][0-9OoIl|SB \t]{9,18}[0-9OoIl|SB])/gi;
+ while((m=lab.exec(flat)))add(fix(m[2]),'next to “'+m[1].replace(/\s+/g,' ').trim()+'”');
+ const r12=/(^|[^0-9])([0-9]{12})(?![0-9])/g;while((m=r12.exec(t)))add(m[2],'12-digit number');
+ const r444=/(^|[^0-9])([0-9]{4}[ -][0-9]{4}[ -][0-9]{4})(?![0-9])/g;while((m=r444.exec(t)))add(m[2].replace(/\D/g,''),'12-digit number');
+ const amounts=[],addA=v=>{if(isFinite(v)&&v>0&&v<1e8&&!amounts.includes(v))amounts.push(v)},num=x=>parseFloat(x.replace(/,/g,''));
+ const ra=/(?:₹|Rs\.?|INR)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/gi;while((m=ra.exec(t)))addA(num(m[1]));
+ const rl=/(?:Amount(?:\s*Paid)?|Paid|Sent|Received|Total)\s*[:\-]?\s*(?:₹|Rs\.?|INR)?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/gi;while((m=rl.exec(t)))addA(num(m[1]));
+ // GPay/PhonePe show the amount alone on a big line, often with the ₹ symbol lost by OCR
+ t.split('\n').forEach(l=>{const q=l.trim().match(/^(?:[₹¥])?\s*([0-9]{1,3}(?:,[0-9]{2,3})+|[0-9]{1,8})(\.[0-9]{1,2})?$/);if(q&&q[1].replace(/,/g,'').length<=8&&!(q[1].length===12&&!q[2]))addA(num(q[1]+(q[2]||'')))});
+ return{cands:out,amounts};
+}
+function amountSeen(text,amt){const re=/[0-9][0-9,]*(?:\.[0-9]{1,2})?/g;let m;while((m=re.exec(text))){if(parseFloat(m[0].replace(/,/g,''))===amt)return true}return false}
+async function utrCheck(utr,self){
+ const own=BILLS.find(b=>b.utr===utr&&(!self||b.id!==self.id));
+ if(own)return{dup:true,where:'this ledger',no:pad(own.no),info:`${own.name}${own.flat?', '+own.flat:''}, ${fmtDate(own.date)}`};
+ if(!S.fd_on)return{dup:false};
+ const mine=self?feedNo(self):null;
+ try{
+  if(S.fd_mode==='turso'&&tursoCfg().ok){
+   const r=await tursoExec([{sql:'SELECT receipt_no,owner_name,flat FROM receipts WHERE utr=? LIMIT 1',args:[utr]}]);
+   const rows=(r[0]&&r[0].response&&r[0].response.result&&r[0].response.result.rows)||[];
+   if(rows.length&&rows[0][0].value!==mine)return{dup:true,where:'Turso',no:rows[0][0].value,info:`${rows[0][1].value||''}${rows[0][2].value?', '+rows[0][2].value:''}`};
+  }else if(S.fd_mode==='remote'&&/\/api\/receipts\/?$/i.test(S.fd_url||'')){
+   const r=await fetch(S.fd_url.replace(/\/+$/,'')+'?utr='+encodeURIComponent(utr),{headers:authHeaders()});
+   if(!r.ok)throw new Error('the API replied HTTP '+r.status);
+   const hit=((await r.json()).receipts||[])[0];
+   if(hit&&hit.receipt_no!==mine)return{dup:true,where:'the feeder API',no:hit.receipt_no,info:`${hit.owner_name||''}${hit.flat?', '+hit.flat:''}`};
+  }
+ }catch(e){
+  if(/no such (table|column)/i.test(e.message))return{dup:false};
+  return{dup:false,unverified:e.message||String(e)};
+ }
+ return{dup:false};
+}
+function utrLocalHint(){
+ const el=$('utrDup');if(!el||$('f_mode').value!=='UPI')return;
+ const u=$('f_ref').value.replace(/\D/g,'');
+ if(!u){el.textContent='';return}
+ if(!/^\d{12}$/.test(u)){el.textContent='UTR must be exactly 12 digits ('+u.length+' so far).';el.style.color='var(--red)';return}
+ const self=EDIT_ID?BILLS.find(b=>b.id===EDIT_ID):null,own=BILLS.find(b=>b.utr===u&&(!self||b.id!==self.id));
+ if(own){el.textContent='✖ Already used by receipt '+pad(own.no)+' ('+own.name+'). It cannot be used again.';el.style.color='var(--red)';return}
+ el.textContent='✔ 12 digits, not used in this ledger'+(S.fd_on&&(S.fd_mode==='turso'||S.fd_mode==='remote')?' — also checked against '+(S.fd_mode==='turso'?'Turso':'the API')+' when you save.':'.');el.style.color='var(--ok)';
+}
+async function utrDupUI(u){
+ const el=$('utrDup');if(!el)return;el.style.color='';el.textContent='Checking whether this UTR was used before…';
+ const self=EDIT_ID?BILLS.find(b=>b.id===EDIT_ID):null,c=await utrCheck(u,self);
+ if($('f_ref').value.replace(/\D/g,'')!==u)return; // user changed it meanwhile
+ if(c.dup){el.textContent='✖ This UTR was already used for receipt '+c.no+' ('+c.info+') in '+c.where+'. It cannot be used again.';el.style.color='var(--red)'}
+ else if(c.unverified){el.textContent='⚠ Not used in this ledger, but could not be checked remotely ('+c.unverified+').';el.style.color='#b26a00'}
+ else{el.textContent='✔ New UTR — not used before. Payment can be accepted.';el.style.color='var(--ok)'}
+}
+async function shotChosen(inp){
+ const f=inp.files&&inp.files[0];if(!f)return;
+ const st=$('utrState');$('utrCands').innerHTML='';$('utrDup').textContent='';
+ if(!/^image\//.test(f.type)){st.style.color='var(--red)';st.textContent='Please choose an image (screenshot or photo).';return}
+ try{
+  const c=await imgToCanvas(f,1600),k=Math.min(1,1000/Math.max(c.width,c.height)),sm=document.createElement('canvas');
+  sm.width=Math.round(c.width*k);sm.height=Math.round(c.height*k);sm.getContext('2d').drawImage(c,0,0,sm.width,sm.height);
+  const blob=await new Promise(r=>sm.toBlob(r,'image/jpeg',0.8));
+  SHOT={blob};$('shotThumb').src=URL.createObjectURL(blob);$('shotThumb').classList.remove('hidden');$('shotClear').classList.remove('hidden');
+  OCR_BUSY=true;st.style.color='';st.textContent='Reading the screenshot… 0%';
+  const text=await runOCR(prepOCR(c),p=>{st.textContent='Reading the screenshot… '+p+'%'});
+  OCR_BUSY=false;await showOCR(text);
+ }catch(e){OCR_BUSY=false;st.style.color='var(--red)';st.textContent=(e.message||String(e))+' — you can type the UTR instead.'}
+}
+function amtRefresh(){
+ const el=$('resAmt');if(!el||!SHOT_AMTS)return;const A=SHOT_AMTS,amt=Number($('f_amt').value)||0,f=v=>'₹'+v.toLocaleString('en-IN');
+ if(!A.length){el.style.color='#b26a00';el.innerHTML='⚠ Amount: could not be read from the screenshot — check it by eye.';return}
+ const hit=amt&&A.includes(amt);
+ if(hit){el.style.color='var(--ok)';el.textContent='✔ Amount '+f(amt)+' — matches the receipt amount';return}
+ const alts=A.slice(0,3).map(v=>`<button type="button" class="chip" style="font-size:13px" onclick="useAmt(${v})">Use ${f(v)}</button>`).join(' ');
+ el.style.color='var(--red)';
+ el.innerHTML=(amt?'✖ Amount: screenshot shows '+A.slice(0,3).map(f).join(' / ')+' but the receipt amount is '+f(amt)+'. ':'Amount found: '+A.slice(0,3).map(f).join(' / ')+'. ')+alts;
+}
+document.addEventListener('input',e=>{if(e.target&&e.target.id==='f_amt')amtRefresh()});
+function useAmt(v){$('f_amt').value=v;if(typeof updatePreview==='function')updatePreview();amtRefresh()}
+async function showOCR(text){
+ const r=parseUTR(text),st=$('utrState'),box=$('utrCands'),res=$('shotRes');box.innerHTML='';
+ SHOT_AMTS=r.amounts;res.classList.remove('hidden');
+ // amount: fill it in when the receipt amount is still empty, then tick it
+ if(r.amounts.length&&!(Number($('f_amt').value)>0)){$('f_amt').value=r.amounts[0];updatePreview();$('resAmt').dataset.auto='1'}
+ amtRefresh();if($('resAmt').dataset.auto==='1'&&$('resAmt').textContent.startsWith('✔')){$('resAmt').textContent+=' (filled in from the screenshot)';$('resAmt').dataset.auto=''}
+ if(!r.cands.length){$('resUtr').style.color='var(--red)';$('resUtr').textContent='✖ UTR: no 12-digit number found';st.style.color='var(--red)';st.textContent='No 12-digit UTR found in this image. Type it manually, or attach a clearer screenshot.';return}
+ const top=r.cands[0];$('f_ref').value=top.utr;updatePreview();
+ box.innerHTML=r.cands.map(c=>`<button type="button" class="chip" style="font-size:13px" onclick="pickUTR('${c.utr}')">${c.utr}</button>`).join('');
+ $('resUtr').style.color='var(--ok)';$('resUtr').textContent='✔ UTR '+top.utr;
+ st.style.color='';st.textContent='Found '+top.why+(r.cands.length>1?' — '+r.cands.length+' candidates, tap the right one':'')+'. Please confirm both.';
+ await utrDupUI(top.utr);
+}
+function pickUTR(u){$('resUtr').style.color='var(--ok)';$('resUtr').textContent='✔ UTR '+u;$('f_ref').value=u;updatePreview();utrDupUI(u)}
+async function viewShot(id){
+ const b=BILLS.find(x=>x.id===id);if(!b)return;
+ const blob=await SHOTS.get(feedNo(b));if(!blob)return alert('The payment screenshot is no longer stored on this computer.');
+ const u=URL.createObjectURL(blob);window.open(u,'_blank');setTimeout(()=>URL.revokeObjectURL(u),60000);
+}
+function showPayQR(){
+ if(!(S.qr||S.upi))return alert('The admin has not set a UPI ID or QR yet (Admin → Settings → Payment).');
+ const amt=Number($('f_amt').value)||0,m=document.createElement('div');m.className='modal';
+ m.innerHTML=`<div class="box" style="max-width:360px;text-align:center"><h2 style="margin:0 0 8px;font-size:18px">Scan to pay${amt?' '+esc(inr(amt)):''}</h2>
+  <div id="qrBig" style="display:inline-block;padding:10px;background:#fff;border:1px solid var(--line)">${S.qr?`<img src="${S.qr}" alt="QR" style="width:260px;display:block">`:''}</div>
+  <div style="margin-top:8px;font-weight:700">${esc(S.payee||S.name)}</div><div class="hint">${esc(S.upi||'')}</div>${S.qr&&amt?'<div class="hint">Enter the amount '+esc(inr(amt))+' in the customer’s app.</div>':''}
+  <div style="margin-top:10px"><button class="btn" onclick="this.closest('.modal').remove()">Close</button></div></div>`;
+ document.body.appendChild(m);
+ const q=m.querySelector('#qrBig');
+ if(!S.qr){if(window.QRCode)new QRCode(q,{text:upiLink(amt),width:260,height:260,correctLevel:QRCode.CorrectLevel.M});else q.textContent='QR library not loaded — share the UPI ID: '+S.upi}
+}
+
 init();
-</script>
- <script>
-(function(){var P="billcreator",U="https://billcreator.vercel.app/",K='lic_key';
-function lock(m){var d=document.getElementById('lic-lock');if(!d){d=document.createElement('div');d.id='lic-lock';d.style.cssText='position:fixed;inset:0;z-index:99999;background:#0f172a;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:sans-serif;gap:12px;padding:20px;text-align:center';document.body.appendChild(d)}
-d.innerHTML='<h2>License required</h2><p>'+m+'</p><input id="lic-in" placeholder="XXXX-XXXX-XXXX-XXXX" style="padding:10px;font-size:16px;text-align:center"><button id="lic-b" style="padding:10px 22px;font-size:15px">Activate</button>';
-document.getElementById('lic-b').onclick=function(){localStorage.setItem(K,document.getElementById('lic-in').value.trim().toUpperCase());check()}}
-function check(){var k=localStorage.getItem(K);if(!k)return lock('Enter your license key to continue.');
-fetch(U+'?t='+Date.now()).then(function(r){return r.json()}).then(function(L){
-var x=L.find(function(e){return e.key===k&&e.portal===P});var d=document.getElementById('lic-lock');
-if(!x)return lock('Invalid license key.');if(x.status==='revoked')return lock('This license has been revoked.');
-if(new Date(x.expires)<new Date())return lock('Your license has expired. Please purchase a license key.');
-if(d)d.remove()}).catch(function(){lock('Unable to verify license. Check your connection.')})}
-check();setInterval(check,300000)})();
 </script>
 </body>
 </html>
